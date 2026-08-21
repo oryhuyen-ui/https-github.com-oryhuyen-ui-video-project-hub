@@ -30,19 +30,19 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({ '&':
 function authShell(content, subtitle) {
   return `<main class="auth-page"><section class="auth-card"><div class="brand"><span>ORY</span><h1>ORY Video AI Studio</h1></div><p class="subtitle">${subtitle}</p>${content}</section></main>`;
 }
-function field(label, name, type='text', placeholder='') { return `<label>${label}<input required name="${name}" type="${type}" placeholder="${placeholder}" /></label>`; }
+function field(label, name, type='text', placeholder='', autocomplete='') { return `<label>${label}<input required name="${name}" type="${type}" placeholder="${placeholder}"${autocomplete ? ` autocomplete="${autocomplete}"` : ''} /></label>`; }
 function renderLogin(error='') {
-  app.innerHTML = authShell(`<form id="login-form">${field('Email','email','email','ban@example.com')}${field('Mật khẩu','password','password','Nhập mật khẩu')}${error ? `<p class="error">${error}</p>` : ''}<button class="primary">Đăng nhập</button></form><p class="switch">Chưa có tài khoản? <button class="link" id="go-register">Tạo tài khoản</button></p><aside class="demo"><strong>Tài khoản thử</strong><span>Email: demo@oryvideo.local</span><span>Mật khẩu: Demo123!</span></aside>`, 'Đăng nhập để tiếp tục với khu vực video của bạn.');
+  app.innerHTML = authShell(`<form id="login-form">${field('Email','email','email','ban@example.com','email')}${field('Mật khẩu','password','password','Nhập mật khẩu','current-password')}${error ? `<p class="error" role="alert">${error}</p>` : ''}<button class="primary">Đăng nhập</button></form><p class="switch">Chưa có tài khoản? <button class="link" id="go-register">Tạo tài khoản</button></p><aside class="demo"><strong>Tài khoản thử</strong><span>Email: demo@oryvideo.local</span><span>Mật khẩu: Demo123!</span></aside>`, 'Đăng nhập để tiếp tục với khu vực video của bạn.');
   document.querySelector('#go-register').onclick = () => { screen='register'; render(); };
   document.querySelector('#login-form').onsubmit = e => {
     e.preventDefault(); const data = new FormData(e.target);
     const user = read(USERS_KEY, []).find(u => u.email === data.get('email').trim().toLowerCase() && u.password === data.get('password'));
     if (!user) return renderLogin('Email hoặc mật khẩu chưa đúng. Vui lòng thử lại.');
-    localStorage.setItem(SESSION_KEY, user.id); screen='list'; render();
+    localStorage.setItem(SESSION_KEY, user.id); history.replaceState(null,'',location.pathname); selectedId=null; screen='list'; render();
   };
 }
 function renderRegister(error='') {
-  app.innerHTML = authShell(`<form id="register-form">${field('Tên','name','text','Tên hiển thị')}${field('Email','email','email','ban@example.com')}${field('Mật khẩu','password','password','Tạo mật khẩu')}${field('Nhập lại mật khẩu','confirm','password','Nhập lại mật khẩu')}${error ? `<p class="error">${error}</p>` : ''}<button class="primary">Tạo tài khoản</button></form><p class="switch">Đã có tài khoản? <button class="link" id="go-login">Đăng nhập</button></p>`, 'Tạo tài khoản để bắt đầu khu vực riêng của bạn.');
+  app.innerHTML = authShell(`<form id="register-form">${field('Tên','name','text','Tên hiển thị','name')}${field('Email','email','email','ban@example.com','email')}${field('Mật khẩu','password','password','Tạo mật khẩu','new-password')}${field('Nhập lại mật khẩu','confirm','password','Nhập lại mật khẩu','new-password')}${error ? `<p class="error" role="alert">${error}</p>` : ''}<button class="primary">Tạo tài khoản</button></form><p class="switch">Đã có tài khoản? <button class="link" id="go-login">Đăng nhập</button></p>`, 'Tạo tài khoản để bắt đầu khu vực riêng của bạn.');
   document.querySelector('#go-login').onclick = () => { screen='login'; render(); };
   document.querySelector('#register-form').onsubmit = e => {
     e.preventDefault(); const d = new FormData(e.target); const email=d.get('email').trim().toLowerCase();
@@ -57,7 +57,7 @@ function wireHeader() { document.querySelector('#logout').onclick=()=>{ localSto
 function renderList(user) {
   const videos=read(VIDEOS_KEY,[]).filter(v=>v.ownerId===user.id);
   app.innerHTML=`${header(user)}<main class="workspace"><div class="heading"><p>Không gian làm việc</p><h2>Video của tôi</h2><span>Quản lý và cập nhật hồ sơ video của riêng bạn.</span></div>${videos.length ? `<div class="video-list">${videos.map(v=>`<button class="video-row" data-id="${v.id}"><div><h3>${escapeHtml(v.title)}</h3><p>${escapeHtml(v.goal)}</p></div><span class="status">${escapeHtml(v.status)}</span><b>→</b></button>`).join('')}</div>` : `<section class="empty"><div>▤</div><h3>Bạn chưa có video nào.</h3><p>Các video bạn tạo sau này sẽ xuất hiện tại đây.</p></section>`}</main>`;
-  wireHeader(); document.querySelectorAll('.video-row').forEach(el=>el.onclick=()=>{selectedId=el.dataset.id; location.hash=`video/${encodeURIComponent(selectedId)}`; screen='detail'; render();});
+  wireHeader(); document.querySelectorAll('.video-row').forEach(el=>el.onclick=()=>{notice='';location.hash=`video/${encodeURIComponent(el.dataset.id)}`;});
 }
 function renderDetail(user) {
   const video=read(VIDEOS_KEY,[]).find(v=>v.id===selectedId && v.ownerId===user.id);
@@ -67,5 +67,16 @@ function renderDetail(user) {
   wireHeader(); document.querySelector('#back').onclick=()=>{notice='';location.hash='';screen='list';render();};
   document.querySelector('#video-form').onsubmit=e=>{e.preventDefault();const d=new FormData(e.target);const videos=read(VIDEOS_KEY,[]);const index=videos.findIndex(v=>v.id===video.id && v.ownerId===user.id);if(index<0)return;videos[index]={...videos[index],...Object.fromEntries(d)};write(VIDEOS_KEY,videos);notice='Đã lưu thay đổi thành công.';render();};
 }
+function syncRoute() {
+  if (location.hash.startsWith('#video/')) {
+    selectedId=decodeURIComponent(location.hash.slice(7));
+    screen='detail';
+  } else if (currentUser()) {
+    selectedId=null;
+    screen='list';
+  }
+  render();
+}
 function render() { const user=currentUser(); if (!user) { localStorage.removeItem(SESSION_KEY); return screen==='register' ? renderRegister() : renderLogin(); } if(screen==='detail') renderDetail(user); else renderList(user); }
-init(); render();
+window.addEventListener('hashchange', syncRoute);
+init(); syncRoute();
